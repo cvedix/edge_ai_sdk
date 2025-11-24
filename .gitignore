@@ -1,0 +1,32 @@
+# Build directories
+build/
+cmake-build-*/
+*.cmake
+CMakeCache.txt
+CMakeFiles/
+
+# Compiled files
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+rtsp_ba_crossline_app
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Model files (if large)
+# cvedix_data/
+
