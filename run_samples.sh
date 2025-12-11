@@ -36,3 +36,5 @@ fi
 
 # Run the sample with remaining arguments
 exec "${SAMPLE_PATH}" "$@"
+
+

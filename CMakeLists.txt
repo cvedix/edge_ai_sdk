@@ -53,6 +53,18 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 # Liên kết với SDK CVEDIX
 target_link_libraries(${PROJECT_NAME} PRIVATE cvedix::cvedix_instance_sdk)
 
+# Set RPATH để tìm SDK libraries khi chạy
+# Điều này giúp tìm thấy libtinyexpr.so và các libraries khác
+if(EXISTS /opt/cvedix/lib)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        BUILD_RPATH "/opt/cvedix/lib"
+        INSTALL_RPATH "/opt/cvedix/lib"
+        BUILD_WITH_INSTALL_RPATH TRUE
+    )
+    # Also add library directory for linking
+    target_link_directories(${PROJECT_NAME} PRIVATE /opt/cvedix/lib)
+endif()
+
 # Installation
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin

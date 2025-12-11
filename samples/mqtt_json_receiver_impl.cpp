@@ -339,3 +339,5 @@ void cvedix_mqtt_json_receiver::resubscribe_all() {
 } // namespace cvedix_utils
 
 #endif // CVEDIX_WITH_MQTT
+
+

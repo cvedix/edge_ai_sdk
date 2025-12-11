@@ -178,43 +178,28 @@ target_link_libraries(cvedix_test cvedix::cvedix_instance_sdk)
 link_gstreamer(cvedix_test)
 
 # ============================================================================
-# RTSP Samples - Require RTSP server support
+# RTSP Samples - RTSP support is required
 # ============================================================================
-if(CVEDIX_WITH_RTSP_SERVER)
-    message(STATUS "Building RTSP samples...")
-    
-    add_executable(rtsp_src_sample "rtsp_src_sample.cpp")
-    target_link_libraries(rtsp_src_sample cvedix::cvedix_instance_sdk)
-    link_gstreamer(rtsp_src_sample)
-    
-    add_executable(rtsp_des_sample "rtsp_des_sample.cpp")
-    target_link_libraries(rtsp_des_sample cvedix::cvedix_instance_sdk)
-    link_gstreamer(rtsp_des_sample)
-    
-    add_executable(rtsp_ba_crossline_sample "rtsp_ba_crossline_sample.cpp")
-    target_link_libraries(rtsp_ba_crossline_sample cvedix::cvedix_instance_sdk)
-    link_gstreamer(rtsp_ba_crossline_sample)
-    
-    # Face tracking RTSP sample - requires RTSP and optionally MQTT
-    add_executable(face_tracking_rtsp_sample "face_tracking_rtsp_sample.cpp")
-    target_include_directories(face_tracking_rtsp_sample PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
-    target_link_libraries(face_tracking_rtsp_sample cvedix::cvedix_instance_sdk)
-    link_gstreamer(face_tracking_rtsp_sample)
-    
-    # Link with mosquitto if MQTT is enabled
-    if(CVEDIX_WITH_MQTT)
-        if(MOSQUITTO_FOUND)
-            target_link_libraries(face_tracking_rtsp_sample ${MOSQUITTO_LIBRARIES})
-        else()
-            find_library(MOSQUITTO_LIB NAMES mosquitto)
-            if(MOSQUITTO_LIB)
-                target_link_libraries(face_tracking_rtsp_sample ${MOSQUITTO_LIB})
-            endif()
-        endif()
-    endif()
-else()
-    message(STATUS "Skipping RTSP samples - RTSP server not available")
-endif()
+message(STATUS "Building RTSP samples...")
+
+add_executable(rtsp_src_sample "rtsp_src_sample.cpp")
+target_link_libraries(rtsp_src_sample cvedix::cvedix_instance_sdk)
+link_gstreamer(rtsp_src_sample)
+
+add_executable(rtsp_des_sample "rtsp_des_sample.cpp")
+target_link_libraries(rtsp_des_sample cvedix::cvedix_instance_sdk)
+link_gstreamer(rtsp_des_sample)
+
+add_executable(rtsp_ba_crossline_sample "rtsp_ba_crossline_sample.cpp")
+target_link_libraries(rtsp_ba_crossline_sample cvedix::cvedix_instance_sdk)
+link_gstreamer(rtsp_ba_crossline_sample)
+
+# Face tracking RTSP sample - requires RTSP and MQTT (MQTT is required)
+# Note: MOSQUITTO_LIB and MOSQUITTO_INCLUDE_DIR will be linked after mosquitto is found in MQTT section
+add_executable(face_tracking_rtsp_sample "face_tracking_rtsp_sample.cpp")
+target_include_directories(face_tracking_rtsp_sample PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
+target_link_libraries(face_tracking_rtsp_sample cvedix::cvedix_instance_sdk)
+link_gstreamer(face_tracking_rtsp_sample)
 
 # ============================================================================
 # Kafka Samples - Require Kafka support
@@ -230,93 +215,69 @@ else()
 endif()
 
 # ============================================================================
-# MQTT Samples - Require MQTT support
+# MQTT Samples - MQTT support is required
 # ============================================================================
-if(CVEDIX_WITH_MQTT)
-    message(STATUS "Building MQTT samples...")
-    
-    # Note: mqtt_json_receiver_sample requires cvedix_mqtt_json_receiver implementation
-    # which is not available in the current SDK build. Commented out to avoid linking errors.
-    # Uncomment the following lines if your SDK has MQTT JSON receiver support:
-    #
-    # Check if mosquitto is available for mqtt_json_receiver_sample
-    find_path(MOSQUITTO_INCLUDE_DIR2 mosquitto.h
-        PATHS /usr/include /usr/local/include /opt/local/include
+message(STATUS "Building MQTT samples...")
+
+# Find mosquitto library (required for MQTT)
+find_path(MOSQUITTO_INCLUDE_DIR mosquitto.h
+    PATHS /usr/include /usr/local/include /opt/local/include
+)
+find_library(MOSQUITTO_LIB NAMES mosquitto
+    PATHS /usr/lib /usr/local/lib /opt/local/lib
+)
+
+if(NOT MOSQUITTO_INCLUDE_DIR OR NOT MOSQUITTO_LIB)
+    message(FATAL_ERROR "mosquitto not found - MQTT is required. Install libmosquitto-dev: sudo apt-get install libmosquitto-dev")
+endif()
+
+message(STATUS "Found mosquitto: ${MOSQUITTO_INCLUDE_DIR}, ${MOSQUITTO_LIB}")
+
+# Link mosquitto to face_tracking_rtsp_sample (defined in RTSP section above)
+if(TARGET face_tracking_rtsp_sample)
+    target_include_directories(face_tracking_rtsp_sample PRIVATE ${MOSQUITTO_INCLUDE_DIR})
+    target_link_libraries(face_tracking_rtsp_sample ${MOSQUITTO_LIB})
+endif()
+
+# mqtt_json_receiver_sample
+add_executable(mqtt_json_receiver_sample 
+    "mqtt_json_receiver_sample.cpp"
+    "mqtt_json_receiver_impl.cpp"
+)
+target_include_directories(mqtt_json_receiver_sample PRIVATE 
+    ${CMAKE_SOURCE_DIR}/third_party
+    ${MOSQUITTO_INCLUDE_DIR}
+)
+target_link_libraries(mqtt_json_receiver_sample 
+    cvedix::cvedix_instance_sdk
+    ${MOSQUITTO_LIB}
+)
+# Set RPATH for runtime library loading
+if(EXISTS /opt/cvedix/lib)
+    set_target_properties(mqtt_json_receiver_sample PROPERTIES
+        BUILD_RPATH "/opt/cvedix/lib"
+        INSTALL_RPATH "/opt/cvedix/lib"
+        BUILD_WITH_INSTALL_RPATH TRUE
     )
-    find_library(MOSQUITTO_LIB2 NAMES mosquitto
-        PATHS /usr/lib /usr/local/lib /opt/local/lib
+    target_link_directories(mqtt_json_receiver_sample PRIVATE /opt/cvedix/lib)
+endif()
+
+# Simple RTMP + MQTT sample
+add_executable(simple_rtmp_mqtt_sample "simple_rtmp_mqtt_sample.cpp")
+target_include_directories(simple_rtmp_mqtt_sample PRIVATE 
+    ${CMAKE_SOURCE_DIR}/third_party
+    ${MOSQUITTO_INCLUDE_DIR}
+)
+target_link_libraries(simple_rtmp_mqtt_sample 
+    cvedix::cvedix_instance_sdk
+    ${MOSQUITTO_LIB}
+)
+# Set RPATH for runtime library loading
+if(EXISTS /opt/cvedix/lib)
+    set_target_properties(simple_rtmp_mqtt_sample PROPERTIES
+        BUILD_RPATH "/opt/cvedix/lib"
+        INSTALL_RPATH "/opt/cvedix/lib"
     )
-    
-    if(MOSQUITTO_INCLUDE_DIR2 AND MOSQUITTO_LIB2)
-        add_executable(mqtt_json_receiver_sample 
-            "mqtt_json_receiver_sample.cpp"
-            "mqtt_json_receiver_impl.cpp"
-        )
-        target_include_directories(mqtt_json_receiver_sample PRIVATE 
-            ${CMAKE_SOURCE_DIR}/third_party
-            ${MOSQUITTO_INCLUDE_DIR2}
-        )
-    target_link_libraries(mqtt_json_receiver_sample 
-        cvedix::cvedix_instance_sdk
-        ${MOSQUITTO_LIB2}
-    )
-    target_compile_definitions(mqtt_json_receiver_sample PRIVATE CVEDIX_WITH_MQTT)
-    # Set RPATH for runtime library loading
-    if(EXISTS /opt/cvedix/lib)
-        set_target_properties(mqtt_json_receiver_sample PROPERTIES
-            BUILD_RPATH "/opt/cvedix/lib"
-            INSTALL_RPATH "/opt/cvedix/lib"
-            BUILD_WITH_INSTALL_RPATH TRUE
-        )
-        # Also link the directory so linker can find it
-        target_link_directories(mqtt_json_receiver_sample PRIVATE /opt/cvedix/lib)
-    endif()
-    else()
-        message(WARNING "mosquitto not found - skipping mqtt_json_receiver_sample")
-    endif()
-    
-    # Simple RTMP + MQTT sample - Basic sample combining RTMP and MQTT
-    # Check if mosquitto is available
-    find_path(MOSQUITTO_INCLUDE_DIR mosquitto.h
-        PATHS
-        /usr/include
-        /usr/local/include
-        /opt/local/include
-    )
-    
-    find_library(MOSQUITTO_LIB NAMES mosquitto
-        PATHS
-        /usr/lib
-        /usr/local/lib
-        /opt/local/lib
-    )
-    
-    if(MOSQUITTO_INCLUDE_DIR AND MOSQUITTO_LIB)
-        message(STATUS "Found mosquitto: ${MOSQUITTO_INCLUDE_DIR}, ${MOSQUITTO_LIB}")
-        add_executable(simple_rtmp_mqtt_sample "simple_rtmp_mqtt_sample.cpp")
-        target_include_directories(simple_rtmp_mqtt_sample PRIVATE 
-            ${CMAKE_SOURCE_DIR}/third_party
-            ${MOSQUITTO_INCLUDE_DIR}
-        )
-        target_link_libraries(simple_rtmp_mqtt_sample 
-            cvedix::cvedix_instance_sdk
-            ${MOSQUITTO_LIB}
-        )
-        # Define CVEDIX_WITH_MQTT macro for compilation
-        target_compile_definitions(simple_rtmp_mqtt_sample PRIVATE CVEDIX_WITH_MQTT)
-        # Set RPATH for runtime library loading
-        if(EXISTS /opt/cvedix/lib)
-            set_target_properties(simple_rtmp_mqtt_sample PROPERTIES
-                BUILD_RPATH "/opt/cvedix/lib"
-                INSTALL_RPATH "/opt/cvedix/lib"
-            )
-        endif()
-    else()
-        message(WARNING "mosquitto not found - skipping simple_rtmp_mqtt_sample")
-        message(WARNING "Install libmosquitto-dev to build this sample: sudo apt-get install libmosquitto-dev")
-    endif()
-else()
-    message(STATUS "Skipping MQTT samples - MQTT not available")
 endif()
 
 # ============================================================================
@@ -373,39 +334,43 @@ if(CVEDIX_WITH_RKNN)
     target_link_libraries(rknn_rtsp_tracking_sample cvedix::cvedix_instance_sdk)
     link_gstreamer(rknn_rtsp_tracking_sample)
     
-    # RKNN RTSP tracking with MQTT - requires RKNN, RTSP, and MQTT
-    if(CVEDIX_WITH_RTSP_SERVER AND CVEDIX_WITH_MQTT)
-        add_executable(rknn_rtsp_tracking_mqtt_sample "rknn_rtsp_tracking_mqtt_sample.cpp")
-        target_include_directories(rknn_rtsp_tracking_mqtt_sample PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
-        target_link_libraries(rknn_rtsp_tracking_mqtt_sample cvedix::cvedix_instance_sdk)
-        link_gstreamer(rknn_rtsp_tracking_mqtt_sample)
-        
-        # Link with mosquitto
-        if(MOSQUITTO_FOUND)
-            target_link_libraries(rknn_rtsp_tracking_mqtt_sample ${MOSQUITTO_LIBRARIES})
+    # RKNN RTSP tracking with MQTT - requires RKNN (RTSP and MQTT are required)
+    add_executable(rknn_rtsp_tracking_mqtt_sample "rknn_rtsp_tracking_mqtt_sample.cpp")
+    target_include_directories(rknn_rtsp_tracking_mqtt_sample PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
+    target_link_libraries(rknn_rtsp_tracking_mqtt_sample cvedix::cvedix_instance_sdk)
+    link_gstreamer(rknn_rtsp_tracking_mqtt_sample)
+    
+    # Link with mosquitto (MQTT is required)
+    if(MOSQUITTO_LIB)
+        target_link_libraries(rknn_rtsp_tracking_mqtt_sample ${MOSQUITTO_LIB})
+    else()
+        find_library(MOSQUITTO_LIB_RKNN NAMES mosquitto
+            PATHS /usr/lib /usr/local/lib /opt/local/lib
+        )
+        if(MOSQUITTO_LIB_RKNN)
+            target_link_libraries(rknn_rtsp_tracking_mqtt_sample ${MOSQUITTO_LIB_RKNN})
         else()
-            find_library(MOSQUITTO_LIB NAMES mosquitto)
-            if(MOSQUITTO_LIB)
-                target_link_libraries(rknn_rtsp_tracking_mqtt_sample ${MOSQUITTO_LIB})
-            endif()
+            message(WARNING "mosquitto library not found - rknn_rtsp_tracking_mqtt_sample may fail to link")
         endif()
     endif()
     
-    # RKNN face tracking sample - requires RKNN and MQTT
-    if(CVEDIX_WITH_MQTT)
-        add_executable(rknn_face_tracking_sample "rknn_face_tracking_sample.cpp")
-        target_include_directories(rknn_face_tracking_sample PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
-        target_link_libraries(rknn_face_tracking_sample cvedix::cvedix_instance_sdk)
-        link_gstreamer(rknn_face_tracking_sample)
-        
-        # Link with mosquitto
-        if(MOSQUITTO_FOUND)
-            target_link_libraries(rknn_face_tracking_sample ${MOSQUITTO_LIBRARIES})
+    # RKNN face tracking sample - requires RKNN (MQTT is required)
+    add_executable(rknn_face_tracking_sample "rknn_face_tracking_sample.cpp")
+    target_include_directories(rknn_face_tracking_sample PRIVATE ${CMAKE_SOURCE_DIR}/third_party)
+    target_link_libraries(rknn_face_tracking_sample cvedix::cvedix_instance_sdk)
+    link_gstreamer(rknn_face_tracking_sample)
+    
+    # Link with mosquitto (MQTT is required)
+    if(MOSQUITTO_LIB)
+        target_link_libraries(rknn_face_tracking_sample ${MOSQUITTO_LIB})
+    else()
+        find_library(MOSQUITTO_LIB_RKNN2 NAMES mosquitto
+            PATHS /usr/lib /usr/local/lib /opt/local/lib
+        )
+        if(MOSQUITTO_LIB_RKNN2)
+            target_link_libraries(rknn_face_tracking_sample ${MOSQUITTO_LIB_RKNN2})
         else()
-            find_library(MOSQUITTO_LIB NAMES mosquitto)
-            if(MOSQUITTO_LIB)
-                target_link_libraries(rknn_face_tracking_sample ${MOSQUITTO_LIB})
-            endif()
+            message(WARNING "mosquitto library not found - rknn_face_tracking_sample may fail to link")
         endif()
     endif()
 else()
@@ -589,15 +554,13 @@ install(TARGETS
     OPTIONAL
 )
 
-# Install RTSP samples if available
-if(CVEDIX_WITH_RTSP_SERVER)
+
     install(TARGETS 
         rtsp_des_sample rtsp_src_sample rtsp_ba_crossline_sample
         face_tracking_rtsp_sample
         DESTINATION bin
         OPTIONAL
     )
-endif()
 
 # Install Kafka samples if available
 if(CVEDIX_WITH_KAFKA)
@@ -608,23 +571,20 @@ if(CVEDIX_WITH_KAFKA)
     )
 endif()
 
-# Install MQTT samples if available
-if(CVEDIX_WITH_MQTT)
-    # Only install samples if they were built (mosquitto available)
-    if(TARGET simple_rtmp_mqtt_sample)
-        install(TARGETS 
-            simple_rtmp_mqtt_sample
-            DESTINATION bin
-            OPTIONAL
-        )
-    endif()
-    if(TARGET mqtt_json_receiver_sample)
-        install(TARGETS 
-            mqtt_json_receiver_sample
-            DESTINATION bin
-            OPTIONAL
-        )
-    endif()
+# Install MQTT samples (MQTT is required)
+if(TARGET simple_rtmp_mqtt_sample)
+    install(TARGETS 
+        simple_rtmp_mqtt_sample
+        DESTINATION bin
+        OPTIONAL
+    )
+endif()
+if(TARGET mqtt_json_receiver_sample)
+    install(TARGETS 
+        mqtt_json_receiver_sample
+        DESTINATION bin
+        OPTIONAL
+    )
 endif()
 
 # Install LLM samples if available
@@ -657,21 +617,20 @@ if(CVEDIX_WITH_RKNN)
         OPTIONAL
     )
     
-    # Install RKNN MQTT samples if available
-    if(CVEDIX_WITH_MQTT)
+    # Install RKNN MQTT samples (MQTT and RTSP are required)
+    if(TARGET rknn_face_tracking_sample)
         install(TARGETS 
             rknn_face_tracking_sample
             DESTINATION bin
             OPTIONAL
         )
-        
-        if(CVEDIX_WITH_RTSP_SERVER)
-            install(TARGETS 
-                rknn_rtsp_tracking_mqtt_sample
-                DESTINATION bin
-                OPTIONAL
-            )
-        endif()
+    endif()
+    if(TARGET rknn_rtsp_tracking_mqtt_sample)
+        install(TARGETS 
+            rknn_rtsp_tracking_mqtt_sample
+            DESTINATION bin
+            OPTIONAL
+        )
     endif()
 endif()
 

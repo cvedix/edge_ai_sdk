@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <map>
+#include <cstdlib>
 
 /**
  * @file main.cpp
@@ -31,6 +32,14 @@
  * @return Exit code (0 on success)
  */
 int main(int argc, char* argv[]) {
+    // Suppress GStreamer CRITICAL warnings during initialization
+    // These warnings occur when GStreamer tries to query caps before pipeline is fully ready
+    // Set GStreamer debug level to suppress CRITICAL messages (0=ERROR only, 1=WARNING, etc.)
+    // Note: Set this BEFORE initializing GStreamer (before creating any nodes)
+    if (!getenv("GST_DEBUG")) {
+        setenv("GST_DEBUG", "1", 0);  // Only show WARNING and above, suppress CRITICAL
+    }
+    
     // Set log level and initialize logger
     CVEDIX_SET_LOG_LEVEL(cvedix_utils::cvedix_log_level::INFO);
     CVEDIX_LOGGER_INIT();
@@ -41,7 +50,7 @@ int main(int argc, char* argv[]) {
 
     // Configuration parameters
     // RTSP source configuration
-    std::string rtsp_url = "rtsp://anhoidong.datacenter.cvedix.com:8554/live/camera_demo";
+    std::string rtsp_url = "rtsp://anhoidong.datacenter.cvedix.com:8554/live/camera_demo_sang_vehicle";
     int rtsp_channel = 0;
     double rtsp_fps = 0.6;
 
