@@ -58,3 +58,6 @@ install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION bin
 )
 
+# Build all samples
+add_subdirectory(samples)
+
